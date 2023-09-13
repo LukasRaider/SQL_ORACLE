@@ -80,10 +80,166 @@ DECLARE
         v_result NUMBER;
     BEGIN
         SELECT AVG(SALARY) INTO v_result FROM EMPLOYEES WHERE DEPT_ID = nDept;
-        RETURN v_result;
+        RETURN ROUND(v_result);
     END avgSalDept;
     /
     SELECT avgSalDept(1)FROM dual;
     SELECT avgSalDept(2)FROM dual;
     SELECT avgSalDept(3)FROM dual;
     SELECT avgSalDept(4)FROM dual;
+    
+    -- procedury
+    --procedury pl vypise text
+    CREATE OR REPLACE PROCEDURE pl(pText IN VARCHAR2) IS
+BEGIN
+    DBMS_OUTPUT.PUT_LINE(pText);
+END pl;
+/
+
+EXECUTE pl('Hi!');
+
+--procedura vypise info o cloveku, jehoz id zname - procedura empInfo
+
+CREATE OR REPLACE PROCEDURE empInfo(pId IN NUMBER) IS
+    v_firstName EMPLOYEES.FIRST_NAME%TYPE;
+    v_lastName EMPLOYEES.LAST_NAME%TYPE;
+    v_salary EMPLOYEES.SALARY%TYPE;
+BEGIN
+    SELECT FIRST_NAME INTO v_firstName FROM EMPLOYEES WHERE ID = pId;
+    SELECT LAST_NAME INTO v_lastName FROM EMPLOYEES WHERE ID = pId;
+    SELECT SALARY INTO v_salary FROM EMPLOYEES WHERE ID = pId;
+    pl(v_firstName || ' ' || v_lastName || ' má výplatu ' || TO_CHAR(v_salary)|| ' EUR');
+    
+END empInfo;
+/
+
+execute empinfo(1);
+
+
+CREATE OR REPLACE PROCEDURE empInfoRec(pId IN NUMBER) IS
+    r_emp EMPLOYEES%ROWTYPE;
+    BEGIN
+        SELECT * INTO r_emp FROM EMPLOYEES WHERE ID = pID;
+        pl(r_emp.FIRST_NAME || ' ' || r_emp.LAST_NAME || ' ma vyplatu ' || TO_CHAR(r_emp.SALARY) || ' EUR');
+    END empInfoRec;
+    /
+    
+execute empinforec(1);
+
+CREATE OR REPLACE PROCEDURE deptInfo(pId IN NUMBER) IS
+    r_emp EMPLOYEES%ROWTYPE;
+    v_cnt NUMBER;
+    v_salary NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO v_cnt FROM EMPLOYEES WHERE DEPT_ID = pID;
+        SELECT SUM(SALARY)INTO v_salary FROM EMPLOYEES WHERE DEPT_ID = pID;
+        
+        pl('Oddeleni cislo ' || pID || ' ma celkem ' || v_cnt || ' zamestnance a firma zaplati na jejich mzdach celkem ' || ROUND(v_salary) || ' EUR');
+    END deptInfo;
+    /
+    
+    EXECUTE deptInfo(1);
+    
+    
+--kurzory
+--anonymní blok, který vypíše jméno a pøíjmení jako jeden øetìzec
+BEGIN
+    FOR r_emp IN (
+        SELECT FIRST_NAME, 
+            LAST_NAME 
+        FROM EMPLOYEES
+    )
+    LOOP
+        pl( r_emp.FIRST_NAME ||' '|| r_emp.LAST_NAME);
+    END LOOP;
+END;
+/
+
+SELECT FIRST_NAME, LAST_NAME FROM EMPLOYEES;
+
+--EXPLICITNÍ
+
+DECLARE
+    CURSOR c_emp IS
+        SELECT
+            FIRST_NAME,
+            LAST_NAME
+        FROM EMPLOYEES;
+    r_emp c_emp%ROWTYPE;   
+BEGIN
+    FOR r_emp IN c_emp
+    LOOP
+        pl( r_emp.FIRST_NAME ||' '|| r_emp.LAST_NAME);
+    END LOOP;
+END;
+/
+
+
+DECLARE
+    CURSOR c_emp IS
+        SELECT
+            FIRST_NAME,
+            LAST_NAME
+        FROM EMPLOYEES;
+    r_emp c_emp%ROWTYPE;   
+BEGIN
+    
+    OPEN c_emp;
+    LOOP
+        FETCH c_emp INTO r_emp;
+        EXIT WHEN c_emp%NOTFOUND;
+        pl( r_emp.FIRST_NAME ||' '|| r_emp.LAST_NAME);
+    END LOOP;
+    CLOSE c_emp;
+END;
+/
+
+-- uprava uppercase pro jmeno a a lowercase pro prijemni pridani 10000 na vzplatu vypis procedurz pl 
+DECLARE
+    CURSOR c_emp IS
+        SELECT
+            FIRST_NAME,
+            LAST_NAME,
+            SALARY
+        FROM EMPLOYEES;
+    r_emp c_emp%ROWTYPE;   
+BEGIN
+    
+    OPEN c_emp;
+    LOOP
+        FETCH c_emp INTO r_emp;
+        EXIT WHEN c_emp%NOTFOUND;
+        pl( UPPER(r_emp.FIRST_NAME) ||' '|| LOWER(r_emp.LAST_NAME) || ' vyplata ' || TO_CHAR(r_emp.SALARY+ 10000));
+    END LOOP;
+    CLOSE c_emp;
+END;
+/
+
+--TRIGGER
+CREATE OR REPLACE TRIGGER TR_EMPLOYEES_BI
+BEFORE INSERT ON EMPLOYEES
+FOR EACH ROW
+BEGIN
+    IF(:NEW.ID IS NULL) THEN
+        SELECT SQ_EMPLOYEES.NEXTVAL
+        INTO :NEW.ID
+        FROM DUAL;
+    END IF;
+END;
+/
+
+INSERT INTO EMPLOYEES (FIRST_NAME, LAST_NAME, DEPT_ID, SALARY) 
+VALUES ('Joanna', 'Trench', 1, 75000);
+commit;
+
+CREATE OR REPLACE TRIGGER TR_EMPLOYEES_BU
+BEFORE UPDATE ON EMPLOYEES
+FOR EACH ROW
+BEGIN
+    :NEW.VERSION := :OLD.VERSION + 1;
+END;
+/
+
+UPDATE employees SET SALARY=60000 WHERE ID=12;
+COMMIT;
+
